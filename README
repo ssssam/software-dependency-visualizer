@@ -1,0 +1,28 @@
+Visualisations of software dependencies
+
+These need to be interactive to be useful ...
+
+# Prior art
+
+debtree: <https://collab-maint.alioth.debian.org/debtree/>
+
+  * Generates dependency graphs for Debian packages using Graphviz
+
+# Javascript graph visualisation
+
+GraphDracula: <http://www.graphdracula.net/>
+
+  * Looks simple and cool, also has links to various related projects
+
+InfoViz: <https://philogb.github.io/jit/>
+
+  * Can generate zoomable, draggable graphs, e.g.:
+    <https://philogb.github.io/jit/static/v20/Jit/Examples/ForceDirected/example2.html>
+
+Canviz:
+
+  * Basically dumps graphviz output to an HTML canvas:
+    <http://www.ryandesign.com/canviz/>
+
+See also:
+  <https://stackoverflow.com/questions/7034/graph-visualization-library-in-javascript>
