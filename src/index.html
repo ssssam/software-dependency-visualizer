@@ -20,7 +20,9 @@
   <script type="text/javascript" src="bower_components/w2ui/w2ui-1.4.3.min.js"></script>
 
   <!-- DotGraph: used to parse Graphviz .dot inputs.
-                 that functionality should probably move server-side at some point. -->
+        That functionality should probably move server-side at some point.
+        From: <https://github.com/siefkenj/dotgraph>
+    -->
   <script type="text/javascript" src="bower_components/dotgraph/js/dotgraph.js"></script>
   <script type="text/javascript" src="bower_components/dotgraph/js/dotparser.js"></script>
 
@@ -77,7 +79,7 @@ function setup_layout() {
     $('#layout').w2layout({
         name: 'layout',
         panels: [
-            { type: 'left', size: 200, resizable: true, style: pstyle },
+            { type: 'left', size: 400, resizable: true, style: pstyle },
         ],
         resizer: 6
     });
