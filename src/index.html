@@ -16,6 +16,7 @@
   <script type="text/javascript" src="bower_components/jquery/dist/jquery.min.js"></script>
 
   <!-- w2ui: user interface library. We use this just for the paned layout. -->
+  <!-- FIXME: should we just use browser <frame> oldskool style instead of that? -->
   <link rel="stylesheet" type="text/css" href="bower_components/w2ui/w2ui-1.4.3.min.css" />
   <script type="text/javascript" src="bower_components/w2ui/w2ui-1.4.3.min.js"></script>
 
@@ -30,15 +31,28 @@
   <script type="text/javascript" src="bower_components/d3/d3.min.js"></script>
 
   <!-- software-dependency-explorer components -->
+  <script type="text/javascript" src="browser.js"></script>
   <script type="text/javascript" src="graph.js"></script>
+  <script type="text/javascript" src="model.js"></script>
 </head>
 
 <body>
-  <div id="panel-right" style="width: 100%; float: right;">
+  <div id="browser" style="width: 100%; float: right;">
       <!-- This is implemented as HTML and this part of the page should work
-           when Javascript isn't enabled.
+           when Javascript isn't enabled, i.e. it should be populated server
+           side. Once there *is* a server side.
         -->
-      I'm the <i>stuff on the right...............</i>
+      <p>
+      Name: <span id="name"><i>none</i></span>
+      </p>
+
+      <p>
+      Requires: <span id="requires"><i>none</i></span>
+      </p>
+
+      <p>
+      Required by: <span id="required-by"><i>none</i></span>
+      </p>
   </div>
 
   <div id="layout" style="width: 100%; height: 600px; display: none;">
@@ -57,19 +71,41 @@
 
 <script>
 
+// Get a ? query parameter from the URL.
+// From: https://stackoverflow.com/questions/901115/how-can-i-get-query-string-values-in-javascript/5158301#5158301
+function getParameterByName(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+DEFAULT_FOCUS = "bde";
+
 // Main function, called on page load.
 $(function() {
     setup_layout();
 
-    var graph = new Graph("#graph-visualisation");
+    var model = new Model();
 
+    var browser = new Browser(model, "#browser");
+    // We can't do much with the browser client-side until the data is loaded
+
+    var graph = new Graph(model, "#graph-visualisation");
     // We can't render the graph yet, so add some "loading" text.
     graph.show_loading_text("Loading graph...");
 
     // Load the graphviz data into a hidden <div> element. This sucks and is
     // one of the many reasons we should do the graph processing server-side.
     $("#graph-source").load("dpkg-declared-deps.dot", function() {
-        setup_graph_visualisation(graph, $("#graph-source").text());
+        var dotgraph_ast = DotParser.parse($("#graph-source").text());
+        var dotgraph_graph = new DotGraph(dotgraph_ast);
+        dotgraph_graph.walk();
+        model.import_from_dotgraph(dotgraph_graph);
+
+        var focus_component = getParameterByName("focus") || DEFAULT_FOCUS;
+        browser.show_component(focus_component);
+
+        graph.setup_visualisation();
+        graph.hide_loading_text();
     });
 });
 
@@ -85,59 +121,9 @@ function setup_layout() {
     });
 
     w2ui.layout.content('left', $('#graph-visualisation').get());
-    w2ui.layout.content('main', $('#panel-right').get());
+    w2ui.layout.content('main', $('#browser').get());
     $('#layout').show();
 };
-
-// Called once the graphviz source text has been loaded.
-function setup_graph_visualisation(graph, graphviz_text) {
-    var dotgraph_ast = DotParser.parse(graphviz_text);
-    var dotgraph_graph = new DotGraph(dotgraph_ast);
-
-    dotgraph_graph.walk();
-
-    graph.load_from_dotgraph(dotgraph_graph);
-
-    var svg = d3.select("#graph-visualisation");
-
-    var force = d3.layout.force()
-        .nodes(graph.nodes)
-        .links(graph.edges)
-        .size([$("#graph-visualisation").width(),
-               $("#graph-visualisation").height()]);
-
-    // The initial render is done in a further timeout, to avoid
-    // blocking for a long time.
-    // This is based on: http://bl.ocks.org/mbostock/1667139
-    setTimeout(function() {
-      // Run the layout a fixed number of times.
-      // The ideal number of times scales with graph complexity.
-      // Of course, don't run too long—you'll hang the page!
-      var n = 100;
-      force.start();
-      for (var i = n * n; i > 0; --i) force.tick();
-      force.stop();
-
-      svg.selectAll("line")
-          .data(graph.edges)
-        .enter().append("line")
-          .attr("x1", function(d) { return d.source.x; })
-          .attr("y1", function(d) { return d.source.y; })
-          .attr("x2", function(d) { return d.target.x; })
-          .attr("y2", function(d) { return d.target.y; });
-
-      svg.selectAll("circle")
-          .data(graph.nodes)
-        .enter().append("circle")
-          .attr("cx", function(d) { return d.x; })
-          .attr("cy", function(d) { return d.y; })
-          .attr("r", 4.5);
-
-        console.log("Rendering complete")
-
-        graph.hide_loading_text();
-    }, 10);
-}
 
 </script>
 
