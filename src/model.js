@@ -7,6 +7,8 @@
  * layouts, which means D3 sets various properties on them.
  */
 
+"use strict";
+
 // The Component class is used to represent:
 //
 //   - each node in the dependency graph
@@ -49,8 +51,6 @@ Model.prototype.import_from_dotgraph = function(dotgraph_object) {
         this.nodes[name] = new Component(name)
     }
 
-    console.log(this.nodes);
-
     // DotGraph stores the edges as a dict, where key is the edge name,
     // and value is an array with one entry, an object with a .edge property
     // that contains an array. (Really).
@@ -88,6 +88,48 @@ Model.prototype.all_nodes = function() {
         all_nodes[index] = node;
     }, this);
     return all_nodes;
+}
+
+// Returns a component plus its requires and required-by components.
+//
+// The result is an object, with component names as the keys and the
+// objects themselves as values.
+//
+// It would make more sense to return a Javascript Set object but these
+// aren't supported in all browsers (Internet Explorer < 11, in particular).
+// Arrays are a bit rubbish in old browsers too, Objects are most useful.
+//
+// Transitive dependencies are included up to the given maximum.
+//
+// This query should probably be done by a graph query running server-side
+// rather than by client-side Javascript code. It traverses the graph
+// recursively which is of course not amazingly efficient.
+//
+// FIXME: that said, is there any simple way to make this faster? it's so sloww!!!
+Model.prototype.node_with_dependencies = function(
+        root_name, max_requires, max_required_by) {
+    var root = this.nodes[root_name];
+    var result = { };
+    result[root_name] = root;
+
+    console.log("Finding dep tree for " + root_name + ", max requires " +
+            max_requires + ", max required by: " + max_required_by);
+
+    function collect_depends(collection, root, depends_fn, depth, maximum_depth) {
+        if (depth > maximum_depth)
+            return;
+        depends_fn(root).forEach(function(dep) {
+            if (! (dep.label in collection)) {
+                collection[dep.label] = dep;
+                collect_depends(collection, dep, depends_fn, depth + 1, maximum_depth);
+            }
+        });
+    }
+
+    collect_depends(result, root, function(n) { return n.requires; }, 1, max_requires);
+    collect_depends(result, root, function(n) { return n.required_by; }, 1, max_required_by);
+
+    return result;
 }
 
 // Returns an array of all the edges in the data model.

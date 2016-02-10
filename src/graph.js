@@ -31,40 +31,79 @@ Graph.prototype.hide_loading_text = function() {
     this.loading_text.remove();
 }
 
-Graph.prototype.setup_visualisation = function() {
+Graph.prototype.setup_visualisation = function(focus_node) {
     var svg = this.target;
 
-    var nodes = this.data.all_nodes();
-    var edges = this.data.all_edges();
+    var max_requires = 0;
+    var max_required_by = 0;
+    var nodes = this.data.node_with_dependencies(focus_node, 2, 0);
+
+    // It amazes me that Object.values() is only now being developed... i'm
+    // avoiding it here for that reason.
+    var nodes_array = [];
+    Object.keys(nodes).forEach(function(node_name) {
+        nodes_array.push(nodes[node_name]);
+    });
+
+    // Start all nodes in the centre; this makes the initial
+    // stabilisation a lot less weird and distracting.
+    nodes_array.forEach(function(node) {
+        node.x = this.width / 2;
+        node.y = this.height / 2;
+    }, this);
+
+    // FIXME: edges needs reworking now that we only graph a subset of the nodes...
+    var edges = this.data.all_edges().filter(function(element) {
+        //console.log(element.source, element.target);
+        return (element.source.label in nodes) && (element.target.label in nodes);
+    });
+
+    console.log(edges);
 
     var force = d3.layout.force()
-        .nodes(nodes)
+        .nodes(nodes_array)
         .links(edges)
-        .size([this.width, this.height]);
+        .size([this.width, this.height])
+        .start();
 
-    // The initial render is done in a further timeout, to avoid
-    // blocking for a long time.
-    // This is based on: http://bl.ocks.org/mbostock/1667139
-    setTimeout(function() {
-      // Run the layout a fixed number of times.
-      // The ideal number of times scales with graph complexity.
-      // Of course, don't run too long—you'll hang the page!
-      var n = 100;
-      force.start();
-      for (var i = n * n; i > 0; --i) force.tick();
-      force.stop();
+    /* With vector graphics, we create the shapes once, and then use style
+     * changes and translations to response to UI events. Changing the focused
+     * component triggers a page reload.
+     */
+    function create_svg_entities() {
+        svg.selectAll("line").data(edges)
+          .enter().append("line")
+            .attr("x1", function(d) { return d.source.x; })
+            .attr("y1", function(d) { return d.source.y; })
+            .attr("x2", function(d) { return d.target.x; })
+            .attr("y2", function(d) { return d.target.y; })
+            .attr("class", "link");
 
-      svg.selectAll("line").data(edges)
-        .enter().append("line")
-          .attr("x1", function(d) { return d.source.x; })
-          .attr("y1", function(d) { return d.source.y; })
-          .attr("x2", function(d) { return d.target.x; })
-          .attr("y2", function(d) { return d.target.y; });
+        svg.selectAll("circle").data(nodes_array)
+          .enter().append("circle")
+            .attr("cx", 0)
+            .attr("cy", 0)
+            .attr("r", 4.5)
+            .attr("class", "node");
+    }
 
-      svg.selectAll("circle").data(nodes)
-        .enter().append("circle")
-          .attr("cx", function(d) { return d.x; })
-          .attr("cy", function(d) { return d.y; })
-          .attr("r", 4.5);
-    }, 10);
+    // Update the positions of links and circles following the
+    // D3 force-directed layout.
+    function tick() {
+        svg.selectAll("line.link")
+            .attr("x1", function(d) { return d.source.x; })
+            .attr("y1", function(d) { return d.source.y; })
+            .attr("x2", function(d) { return d.target.x; })
+            .attr("y2", function(d) { return d.target.y; })
+
+        // Yes, we really construct a property value using string
+        // concatenation, every tick... this approach is taken from the D3
+        // examples.
+        svg.selectAll("circle.node").attr(
+            "transform", function(d) {
+                return "translate(" + d.x + "," + d.y + ")"; });
+    }
+
+    create_svg_entities();
+    force.on("tick", tick);
 }

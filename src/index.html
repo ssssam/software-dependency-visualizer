@@ -28,7 +28,8 @@
   <script type="text/javascript" src="bower_components/dotgraph/js/dotparser.js"></script>
 
   <!-- D3: data visualisation toolkit. -->
-  <script type="text/javascript" src="bower_components/d3/d3.min.js"></script>
+  <!-- <script type="text/javascript" src="bower_components/d3/d3.min.js"></script>-->
+  <script type="text/javascript" src="bower_components/d3/d3.js"></script>
 
   <!-- Knockout: data binding library -->
   <script type="text/javascript" src="bower_components/knockout/dist/knockout.js"></script>
@@ -37,6 +38,7 @@
   <script type="text/javascript" src="browser.js"></script>
   <script type="text/javascript" src="graph.js"></script>
   <script type="text/javascript" src="model.js"></script>
+  <link rel="stylesheet" type="text/css" href="graph.css">
 </head>
 
 <body>
@@ -116,7 +118,7 @@ $(function() {
         var focus_component = getParameterByName("focus") || DEFAULT_FOCUS;
         browser.show_component(focus_component);
 
-        graph.setup_visualisation();
+        graph.setup_visualisation(focus_component);
         graph.hide_loading_text();
     });
 });

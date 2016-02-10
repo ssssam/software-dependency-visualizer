@@ -1,0 +1,12 @@
+/* Default stylesheet for the graph visualisation */
+
+line.link {
+    stroke: black;
+    stroke-width: 1px;
+}
+
+circle.node {
+    fill: none;
+    stroke: black;
+}
+
