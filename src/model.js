@@ -7,6 +7,24 @@
  * layouts, which means D3 sets various properties on them.
  */
 
+// The Component class is used to represent:
+//
+//   - each node in the dependency graph
+//   - each fundamental unit in the software design
+//
+function Component(label) {
+    if (label == undefined)
+        throw new Error("Component 'label' must be defined.");
+
+    this.label = label;
+
+    // FIXME: URL escapeing!!!!
+    this.focus_url = '?focus=' + this.label
+
+    this.requires = [];
+    this.required_by = [];
+}
+
 // Constructor for Model object.
 function Model() {
     this.nodes = [];
@@ -25,13 +43,13 @@ function Model() {
 //    graph = new Model().import_from_dotgraph(dotgraph_graph);
 //
 Model.prototype.import_from_dotgraph = function(dotgraph_object) {
-    this.nodes = dotgraph_object.nodes;
-    console.log(dotgraph_object.nodes);
+    this.nodes = {};
 
-    this.all_nodes().forEach(function(node) {
-        node.requires = [];
-        node.required_by = [];
-    });
+    for (name in dotgraph_object.nodes) {
+        this.nodes[name] = new Component(name)
+    }
+
+    console.log(this.nodes);
 
     // DotGraph stores the edges as a dict, where key is the edge name,
     // and value is an array with one entry, an object with a .edge property
@@ -46,8 +64,8 @@ Model.prototype.import_from_dotgraph = function(dotgraph_object) {
     Object.keys(dotgraph_object.edges).forEach(function(edge_name, index, _array) {
         var edge_data = dotgraph_object.edges[edge_name][0].edge
 
-        var source = dotgraph_object.nodes[edge_data[0]];
-        var target = dotgraph_object.nodes[edge_data[1]];
+        var source = this.nodes[edge_data[0]];
+        var target = this.nodes[edge_data[1]];
 
         var edge_object = {
             source: source,

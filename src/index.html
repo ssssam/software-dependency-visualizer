@@ -30,6 +30,9 @@
   <!-- D3: data visualisation toolkit. -->
   <script type="text/javascript" src="bower_components/d3/d3.min.js"></script>
 
+  <!-- Knockout: data binding library -->
+  <script type="text/javascript" src="bower_components/knockout/dist/knockout.js"></script>
+
   <!-- software-dependency-explorer components -->
   <script type="text/javascript" src="browser.js"></script>
   <script type="text/javascript" src="graph.js"></script>
@@ -41,17 +44,26 @@
       <!-- This is implemented as HTML and this part of the page should work
            when Javascript isn't enabled, i.e. it should be populated server
            side. Once there *is* a server side.
+
+           The data-bind attribute is used by the Knockout Javascript library
+           to update the fields whenever we call ko.applyBindings().
         -->
       <p>
-      Name: <span id="name"><i>none</i></span>
+      Name: <span id="name" data-bind="text: label"><i>none</i></span>
       </p>
 
       <p>
-      Requires: <span id="requires"><i>none</i></span>
+      Requires:
+      <ul id="requires" data-bind="foreach: requires">
+        <li><a data-bind="text: label, attr: { href: focus_url }"></a></li>
+      </ul>
       </p>
 
       <p>
-      Required by: <span id="required-by"><i>none</i></span>
+      Required by:
+      <ul id="required-by" data-bind="foreach: required_by">
+          <li><a data-bind="text: label, attr: { href: focus_url }"></a></li>
+      </ul>
       </p>
   </div>
 
