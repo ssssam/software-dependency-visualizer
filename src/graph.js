@@ -31,12 +31,11 @@ Graph.prototype.hide_loading_text = function() {
     this.loading_text.remove();
 }
 
-Graph.prototype.setup_visualisation = function(focus_node) {
+Graph.prototype.setup_visualisation = function(focus_node, max_requires, max_required_by) {
     var svg = this.target;
 
-    var max_requires = 0;
-    var max_required_by = 0;
-    var nodes = this.data.node_with_dependencies(focus_node, 2, 0);
+
+    var nodes = this.data.node_with_dependencies(focus_node, max_requires, max_required_by);
 
     // It amazes me that Object.values() is only now being developed... i'm
     // avoiding it here for that reason.
@@ -48,8 +47,10 @@ Graph.prototype.setup_visualisation = function(focus_node) {
     // Start all nodes in the centre; this makes the initial
     // stabilisation a lot less weird and distracting.
     nodes_array.forEach(function(node) {
-        node.x = this.width / 2;
-        node.y = this.height / 2;
+        if (node.x == undefined)
+          node.x = this.width / 2;
+        if (node.y == undefined)
+          node.y = this.height / 2;
     }, this);
 
     // FIXME: edges needs reworking now that we only graph a subset of the nodes...
@@ -104,6 +105,8 @@ Graph.prototype.setup_visualisation = function(focus_node) {
                 return "translate(" + d.x + "," + d.y + ")"; });
     }
 
+    svg.selectAll("line").remove();
+    svg.selectAll("circle").remove();
     create_svg_entities();
     force.on("tick", tick);
 }

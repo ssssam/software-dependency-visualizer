@@ -12,7 +12,7 @@
 
   <title>Software dependency visualiser PROTOTYPE</title>
 
-  <!-- JQuery library: required by w2ui -->
+  <!-- JQuery library -->
   <script type="text/javascript" src="bower_components/jquery/dist/jquery.min.js"></script>
 
   <!-- w2ui: user interface library. We use this just for the paned layout. -->
@@ -80,7 +80,39 @@
       -->
   </div>
 
-  <svg id="graph-visualisation" style="width: 100%; height: 100%;"></svg>
+  <div id="graph-visualisation" style="width: 100%; height: 100%; z-index: 1;">
+    <!-- Controls for the graph -->
+    <form action="#">
+      <fieldset>
+        <label for="layout">Graph layout</label>
+        <select name="layout" id="layout">
+          <option value="force" selected="selected">Force</option>
+          <option value="tree">Tree</option>
+        </select>
+        <br>
+
+        <label for="max-requires">Show requires</label>
+        <select name="max-requires" id="max-requires">
+          <option value="0" selected="selected">0 (None)</option>
+          <option value="1">1 (Direct only)</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        <select>
+        <br>
+
+        <label for="max-required-by">Show required-by</label>
+        <select name="max-required-by" id="max-required-by">
+          <option value="0">0 (None)</option>
+          <option value="1" selected="selected">1 (Direct only)</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        <select>
+      </fieldset>
+    </form>
+
+    <!-- This is the rendering target for the Graph code. -->
+    <svg id="graph-visualisation" style="width: 100%; height: 100%; position: absolute; top: 0px; left: 0px; z-index: -1;"></svg>
+  </div>
 </body>
 
 <script>
@@ -103,7 +135,7 @@ $(function() {
     var browser = new Browser(model, "#browser");
     // We can't do much with the browser client-side until the data is loaded
 
-    var graph = new Graph(model, "#graph-visualisation");
+    var graph = new Graph(model, "svg#graph-visualisation");
     // We can't render the graph yet, so add some "loading" text.
     graph.show_loading_text("Loading graph...");
 
@@ -118,8 +150,19 @@ $(function() {
         var focus_component = getParameterByName("focus") || DEFAULT_FOCUS;
         browser.show_component(focus_component);
 
-        graph.setup_visualisation(focus_component);
+        graph.setup_visualisation(focus_component, $("#max-requires").val(),
+                $("#max-required-by").val());
         graph.hide_loading_text();
+
+        $("#max-requires").change(function(event) {
+            graph.setup_visualisation(focus_component, $("#max-requires").val(),
+                    $("#max-required-by").val());
+        });
+
+        $("#max-required-by").change(function(event) {
+            graph.setup_visualisation(focus_component, $("#max-requires").val(),
+                    $("#max-required-by").val());
+        });
     });
 });
 
@@ -134,7 +177,7 @@ function setup_layout() {
         resizer: 6
     });
 
-    w2ui.layout.content('left', $('#graph-visualisation').get());
+    w2ui.layout.content('left', $('div#graph-visualisation').get());
     w2ui.layout.content('main', $('#browser').get());
     $('#layout').show();
 };
