@@ -84,10 +84,14 @@
     <!-- Controls for the graph -->
     <form action="#">
       <fieldset>
-        <label for="layout">Graph layout</label>
-        <select name="layout" id="layout">
+        <label for="graph-layout">Graph layout</label>
+        <select name="graph-layout" id="graph-layout">
+          <!-- FIXME: we could come up with better names for these layouts,
+               using the name of the D3 class that implements the layout is
+               not necessarily very intuitive.
+            -->
           <option value="force" selected="selected">Force</option>
-          <option value="tree">Tree</option>
+          <option value="cluster">Cluster</option>
         </select>
         <br>
 
@@ -141,6 +145,7 @@ $(function() {
 
     // Load the graphviz data into a hidden <div> element. This sucks and is
     // one of the many reasons we should do the graph processing server-side.
+    // FIXME. d3.text() would be a nicer way to do this
     $("#graph-source").load("dpkg-declared-deps.dot", function() {
         var dotgraph_ast = DotParser.parse($("#graph-source").text());
         var dotgraph_graph = new DotGraph(dotgraph_ast);
@@ -150,19 +155,19 @@ $(function() {
         var focus_component = getParameterByName("focus") || DEFAULT_FOCUS;
         browser.show_component(focus_component);
 
-        graph.setup_visualisation(focus_component, $("#max-requires").val(),
-                $("#max-required-by").val());
+        function setup_graph() {
+            graph.setup_visualisation(focus_component,
+                    $("select#graph-layout").val(),
+                    $("select#max-requires").val(),
+                    $("select#max-required-by").val());
+        }
+
+        setup_graph();
         graph.hide_loading_text();
 
-        $("#max-requires").change(function(event) {
-            graph.setup_visualisation(focus_component, $("#max-requires").val(),
-                    $("#max-required-by").val());
-        });
-
-        $("#max-required-by").change(function(event) {
-            graph.setup_visualisation(focus_component, $("#max-requires").val(),
-                    $("#max-required-by").val());
-        });
+        $("select#graph-layout").change(setup_graph);
+        $("select#max-requires").change(setup_graph);
+        $("select#max-required-by").change(setup_graph);
     });
 });
 
