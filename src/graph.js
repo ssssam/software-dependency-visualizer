@@ -45,30 +45,62 @@ Graph.prototype.setup_visualisation = function(focus_node_name, layout, max_requ
 
     var nodes = this.data.node_with_dependencies(focus_node_name, max_requires, max_required_by);
 
-    /* With vector graphics, we create the shapes once, and then use style
-     * changes and translations to response to UI events. Changing the focused
-     * component triggers a page reload.
-     */
-    function create_svg_entities(nodes_array, edges) {
-        svg.selectAll("line").data(edges)
-          .enter().append("line")
-            .attr("x1", function(d) { return d.source.x; })
-            .attr("y1", function(d) { return d.source.y; })
-            .attr("x2", function(d) { return d.target.x; })
-            .attr("y2", function(d) { return d.target.y; })
-            .attr("class", "link");
+    // These functions sync the SVG elements visualising the data with the
+    // Javascript objects that representing the data.
 
-        svg.selectAll("circle").data(nodes_array)
-          .enter().append("circle")
+    // Note that each SVG element is 'bound' to a specific Javascript object,
+    // using the D3-specific __data__ attribute. These bindings should persist
+    // while the user changes what components are shown, so that any components
+    // still in view are also still in the same place. This is known as "object
+    // constancy".
+
+    function bind_circles(nodes_array) {
+        var node_key_fn = function(d) { return d.label };
+
+        var circles = svg.selectAll("circle");
+        var circles_update = circles.data(nodes_array, node_key_fn);
+
+        // Remove circles whose data is no longer part of the visible model.
+        circles_update.exit().remove();
+
+        // Create new circles for any objects that don't yet have a
+        // corresponding SVG element.
+        //
+        // All circles have position 0. Their location is actually set using
+        // the 'translate' attribute. (FIXME: why?)
+        circles_update.enter().append("circle")
             .attr("cx", 0)
             .attr("cy", 0)
             .attr("r", 4.5)
             .attr("class", "node");
     }
 
-    // Update the positions of links and circles following the
-    // D3 force-directed layout.
-    function force_tick() {
+    function bind_lines(edges) {
+        // FIXME: Right now the 'edges' objects exist just for D3 to arrange
+        // them, which is defeating the point of D3. We should have a
+        // Relationship object type that encodes the actual data of a
+        // 'requires' or a 'required-by' relationship (or any other type).
+
+        var lines = svg.selectAll("line");
+        var lines_update = lines.data(edges);
+        console.log(edges);
+
+        // Remove lines which are no longer part of the visible data.
+        lines_update.exit().remove();
+
+        // Create new lines for relationships that are now visible.
+        lines_update.enter().append("line")
+            .attr("x1", function(d) { return d.source.x; })
+            .attr("y1", function(d) { return d.source.y; })
+            .attr("x2", function(d) { return d.target.x; })
+            .attr("y2", function(d) { return d.target.y; })
+            .attr("class", "link");
+    }
+
+    // Update the positions of SVG elements from the .x and .y attributes
+    // on the Javascript objects that are bound to them. This can be used
+    // as a 'tick' callback for animated layouts.
+    function update_positions() {
         svg.selectAll("line.link")
             .attr("x1", function(d) { return d.source.x; })
             .attr("y1", function(d) { return d.source.y; })
@@ -113,10 +145,9 @@ Graph.prototype.setup_visualisation = function(focus_node_name, layout, max_requ
             .size([this.width, this.height])
             .start();
 
-        svg.selectAll("line").remove();
-        svg.selectAll("circle").remove();
-        create_svg_entities(nodes_array, edges);
-        force.on("tick", force_tick);
+        bind_circles(nodes_array);
+        bind_lines(edges);
+        force.on("tick", update_positions);
 
         this.layout = force;
     } else {
@@ -147,15 +178,12 @@ Graph.prototype.setup_visualisation = function(focus_node_name, layout, max_requ
             .size([this.width, this.height])
 
         var nodes_array = cluster.nodes(nodes[focus_node_name]),
-            links = [];//cluster.links(nodes_array);
+        // FIXME: this isn't right, needs to have .source and .target attrs
+            links = cluster.links(nodes_array);
 
-        svg.selectAll("line").remove();
-        svg.selectAll("circle").remove();
-        create_svg_entities(nodes_array, links);
-
-        svg.selectAll("circle.node").attr(
-            "transform", function(d) {
-                return "translate(" + d.x + "," + d.y + ")"; });
+        bind_lines(nodes_array);
+        bind_circles(links);
+        update_positions();
 
         this.layout = cluster;
     }
