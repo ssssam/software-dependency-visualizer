@@ -3,77 +3,80 @@
 # This is JSON-LD represented as YAML.
 ---
 
-@context:
+'@context':
   # Prefix abbreviations
   id: 'http://example.com/shared-lib#'
   sw: 'http://baserock.org/software-integration-ontology#'
 
+  'sw:contains':
+      '@type': '@id'
+
 # A simple shared library
 
-- @id: 'id:repos/gtk.git/commits/1234'
-  @type: [ 'sw:FileTree' ]
+'@graph':
+- '@id': 'id:repos/gtk.git/commits/1234'
+  '@type': [ 'sw:FileTree' ]
+  'sw:contains':
+    - '@id': 'id:repos/gtk.git/commits/1234/gtk.h'
+      '@type': [ 'sw:File', 'sw:Source' ]
 
-- @id: 'id:repos/gtk.git/commits/1234/gtk.h'
-  @type: [ 'sw:File', 'sw:Source' ]
+    - '@id': 'id:repos/gtk.git/commits/1234/gtk.c'
+      '@type': [ 'sw:File', 'sw:Source' ]
+      'sw:contained-in': 'id:repos/gtk.git'
+      'sw:requires': 'id:repos/gtk.git/commits/1234/gtk.h'
 
-- @id: 'id:repos/gtk.git/commits/1234/gtk.c'
-  @type: [ 'sw:File', 'sw:Source' ]
-  'sw:contained-in': 'id:repos/gtk.git'
-  'sw:requires': 'id:repos/gtk.git/commits/1234/gtk.h'
+    - '@id': 'id:repos/gtk.git/commits/1234/Makefile'
+      '@type': [ 'sw:File', 'sw:Source' ]
+      'sw:contained-in': 'id:repos/gtk.git'
+      'sw:requires':
+          - 'id:repos/gtk.git/commits/1234/gtk.c'
+          - 'id:repos/gtk.git/commits/1234/gtk.h'
 
-- @id: 'id:repos/gtk.git/commits/1234/Makefile'
-  @type: [ 'sw:File', 'sw:Source' ]
-  'sw:contained-in': 'id:repos/gtk.git'
-  'sw:requires':
-      - 'id:repos/gtk.git/commits/1234/gtk.c'
-      - 'id:repos/gtk.git/commits/1234/gtk.h'
-
-- @id: 'id:build-process/gtk'
-  @type: [ 'sw:BuildProcess' ]
+- '@id': 'id:build-process/gtk'
+  '@type': [ 'sw:BuildProcess' ]
   'sw:requires':
       - 'id:repos/gtk.git/commits/1234/gtk.c'
       - 'id:repos/gtk.git/commits/1234/gtk.h'
       - 'id:repos/gtk.git/commits/1234/Makefile'
 
-- @id: 'id:build-process/gtk/gtk.o'
-  @type: [ 'sw:Intermediate', 'sw:File' ]
+- '@id': 'id:build-process/gtk/gtk.o'
+  '@type': [ 'sw:Intermediate', 'sw:File' ]
   'sw:contained-in': 'id:repos/gtk.git'
   'sw:requires':
       - 'id:repos/gtk.git/commits/1234/gtk.c'
       - 'id:repos/gtk.git/commits/1234/gtk.h'
 
-- @id: 'id:output/libgtk.so'
-  @type: [ 'sw:Binary', 'sw:File' ]
+- '@id': 'id:output/libgtk.so'
+  '@type': [ 'sw:Binary', 'sw:File' ]
   'sw:produced-by': 'id:build-process/gtk'
 
 # Debian packaging for the simple shared library
 
-- @id: 'id:repos/gtk-package.git'
-  @type: [ 'sw:Repository' ]
+- '@id': 'id:repos/gtk-package.git'
+  '@type': [ 'sw:Repository' ]
+  'sw:contains':
+    - '@id': 'id:repos/gtk-package.git/commits/5678/debian/rules'
+      '@type': [ 'sw:Source', 'sw:File' ]
+      'sw:requires': 'id:repos/gtk.git/commits/1234'
 
-- @id: 'id:repos/gtk-package.git/commits/5678/debian/rules'
-  @type: [ 'sw:Source', 'sw:File' ]
-  'sw:contained-in': 'id:repos/gtk-package.git'
-  'sw:requires': 'id:repos/gtk.git/commits/1234'
-
-- @id: 'id:build-process/package/source/libgtk'
-  @type: [ 'sw:BuildProcess' ]
+- '@id': 'id:build-process/package/source/libgtk'
+  '@type': [ 'sw:BuildProcess' ]
   'sw:requires': 'id:repos/gtk-package.git/commits/5678/debian/rules'
   'sw:produces': 'id:package/source/libgtk'
 
-- @id: 'id:package/source/libgtk'
-  @type: [ 'sw:Source', 'sw:Package' ]
+- '@id': 'id:package/source/libgtk'
+  '@type': [ 'sw:Source', 'sw:Package' ]
   'sw:contains': 
       - 'id:repos/gtk.git/commits/1234/gtk.c'
       - 'id:repos/gtk.git/commits/1234/gtk.h'
       - 'id:repos/gtk.git/commits/1234/Makefile'
       - 'id:repos/gtk-package.git/commits/5678/debian/rules'
 
-- @id: 'id:build-process/package/binary/libgtk'
-  @type: [ 'sw:BuildProcess' ]
+- '@id': 'id:build-process/package/binary/libgtk'
+  '@type': [ 'sw:BuildProcess' ]
   'sw:requires': 'id:package/source/libgtk'
   'sw:produces': 'id:package/binary/libgtk'
 
-- @id: 'id:package/binary/libgtk'
-  @type: [ 'sw:Binary', 'sw:Package' ]
+- '@id': 'id:package/binary/libgtk'
+  '@type': [ 'sw:Binary', 'sw:Package' ]
   'sw:contains': 'output/libgtk.so'
