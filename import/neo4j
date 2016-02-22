@@ -1,0 +1,130 @@
+#!/usr/bin/python3
+# Import from SDV canonical representation to Neo4j.
+#
+# It might make more sense to write this in Javascript, but it's much quicker
+# for me to write Python right now. Also, the current implementation takes a
+# simplistic approach that would not scale to huge amounts of data. There are
+# hopefully more efficient ways to batch insert data into Neo4j.
+
+# Requires 'py2neo' Python bindings for Neo4j.
+# Requires 'pyld' JSON-LD processor.
+# Requires 'pyyaml' YAML library.
+#
+# If you want to empty your Neo4j database, you can use this Cypher command:
+#
+#   MATCH (n) OPTIONAL MATCH (n)-[r]-() DELETE n,r;
+
+# 
+
+import py2neo
+import pyld.jsonld
+import yaml
+
+import argparse
+import warnings
+
+DEFAULT_ENDPOINT =  'http://neo4j:insecure@localhost:7474/db/data'
+
+def argument_parser():
+    parser = argparse.ArgumentParser(
+        description="Import s-d-v data into Neo4j graph database")
+    parser.add_argument('files', metavar='FILE', nargs='+',
+                        help="JSON-LD data to import (YAML allowed)")
+    parser.add_argument('--endpoint', '-e', metavar='URL',
+                        default=DEFAULT_ENDPOINT,
+                        help="Neo4J endpoint (default: %s)" % DEFAULT_ENDPOINT)
+    return parser
+
+
+def compact_uri(uri, context):
+    # A rather awful way of getting the compact URI for a full URI.
+    # The Python JSON-LD module really doesn't make this very easy right now.
+    result = pyld.jsonld.compact({uri: 0}, ctx=context)
+    del result['@context']
+    return list(result.keys())[0]
+
+
+def find_or_create_node_by_id(graph, id):
+    existing_nodes = list(graph.find(id, limit=2))
+    if len(existing_nodes) > 1:
+        warnings.warn("Multiple nodes exist already for %s" % id)
+    elif len(existing_nodes) > 0:
+        node = existing_nodes[0]
+    else:
+        node = py2neo.Node(id)
+        graph.create(node)
+    return node
+
+
+def main():
+    args = argument_parser().parse_args()
+
+    graph = py2neo.Graph(args.endpoint)
+
+    for filename in args.files:
+        with open(filename) as f:
+            data = yaml.load(f)
+
+        context = data['@context']
+
+        data = pyld.jsonld.expand(data)
+        data = pyld.jsonld.flatten(data)
+
+        nodes = []
+        for resource in data:
+            node = find_or_create_node_by_id(graph, resource['@id'])
+            node.labels.add(compact_uri(resource['@id'], context))
+
+            properties = {}
+            relationships = {}
+            for key, values in resource.items():
+                if not key.startswith('@'):
+                    if not isinstance(values, list):
+                        values = [values]
+                    for value in values:
+                        if isinstance(value, dict) and value.get('@value'):
+                            value = value['@value']
+
+                        if type(value) in [list, dict]:
+                            relationships[key] = value
+                        else:
+                            if key == 'https://schema.org/name':
+                                key = 'name'
+                            node.properties[key] = value
+
+            for key, value in relationships.items():
+                # We always use the short version of a key name to name
+                # relationships. This means that the data requires the context
+                # to make sense. But it is totally unreadable to have
+                # properties named <http://example.com/property-name>, and we
+                # avoid that this way.
+                key = compact_uri(key, context)
+
+                if not isinstance(value, list):
+                    value = [value]
+                for target in value:
+                    if isinstance(target, dict):
+                        if '@id' not in target:
+                            warnings.warn("Invalid value for %s %s:\n\t%s\nMaybe you "
+                                        "forgot to use @id to refer to another "
+                                        "resource?" % (resource['@id'], key,
+                                                        target))
+                            continue
+                        target_id = target['@id']
+                    else:
+                        target_id = target
+
+                    target = find_or_create_node_by_id(graph, target_id)
+                    existing_rels = graph.match(
+                        start_node=node,
+                        rel_type=key,
+                        end_node=target,
+                        limit=2)
+                    if len(list(existing_rels)) == 0:
+                        relationship = py2neo.Relationship(node, key, target)
+                        relationship.properties['name'] = compact_uri(key, context)
+                        graph.create_unique(relationship)
+
+            node.push()
+
+main()
