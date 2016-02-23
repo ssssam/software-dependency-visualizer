@@ -94,9 +94,9 @@ def main():
         for resource in data:
             node = find_or_create_node_by_uri(graph, resource['@id'])
 
-            # The 'compact-uri' property is just for convenience when exploring
+            # The 'compact_uri' property is just for convenience when exploring
             # the graph directly within Neo4j.
-            node.properties['compact-uri'] = compact_uri(
+            node.properties['compact_uri'] = compact_uri(
                 resource['@id'], context)
 
             labels = []
