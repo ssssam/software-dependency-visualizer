@@ -4,6 +4,9 @@
 ---
 
 '@context':
+  # FIXME: this context should be used by all data! and should
+  # be shared somewhere public.
+
   # Prefix abbreviations
   id: 'http://example.com/shared-lib#'
   sw: 'http://baserock.org/software-integration-ontology#'
@@ -23,6 +26,20 @@
   'requires':
       '@id': 'sw:requires'
       '@type': '@id'
+
+  # These 'human-readable' names are not just important here.
+  #
+  # We use these types as labels in Neo4J. ':' is a special character
+  # in the Cypher query language. You can escape using ` characters, but
+  # it's an extra pain.
+  'Binary': 'sw:Binary'
+  'BuildProcess': 'sw:BuildProcess'
+  'File': 'sw:File'
+  'FileTree': 'sw:FileTree'
+  'Intermediate': 'sw:Intermediate'
+  'Package': 'sw:Package'
+  'Repository': 'sw:Repository'
+  'Source': 'sw:Source'
 
   'name': 'https://schema.org/name'
 

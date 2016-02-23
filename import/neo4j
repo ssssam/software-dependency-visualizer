@@ -4,7 +4,8 @@
 # It might make more sense to write this in Javascript, but it's much quicker
 # for me to write Python right now. Also, the current implementation takes a
 # simplistic approach that would not scale to huge amounts of data. There are
-# hopefully more efficient ways to batch insert data into Neo4j.
+# hopefully more efficient ways to batch insert data into Neo4j. (One way is
+# to generate .csv files and then use neo4j-import).
 
 # Requires 'py2neo' Python bindings for Neo4j.
 # Requires 'pyld' JSON-LD processor.
@@ -44,14 +45,33 @@ def compact_uri(uri, context):
     return list(result.keys())[0]
 
 
-def find_or_create_node_by_id(graph, id):
-    existing_nodes = list(graph.find(id, limit=2))
-    if len(existing_nodes) > 1:
-        warnings.warn("Multiple nodes exist already for %s" % id)
-    elif len(existing_nodes) > 0:
-        node = existing_nodes[0]
+def find_node_by_uri(graph, uri, uri_property='uri'):
+    # This is probably not very efficient. An alternative way of doing this
+    # is to store URI as a label, BUT... the browser looks a lot less usable
+    # that way, because the 'Labels' list contains millions of entries
+
+    # This can't be done, which seems like a massive flaw in Py2neo.
+    # Maybe neo4j-rest-client is better?
+    #query_result = graph.find(
+    #    '*', property_key=uri_property, property_value=uri, limit=2)
+
+    query_result = graph.cypher.execute(
+        'MATCH (var {`%s`: "%s"}) RETURN var LIMIT 2' % (uri_property, uri))
+
+    nodes = list(query_result)
+    if len(nodes) > 1:
+        warnings.warn("Multiple nodes exist already for %s" % uri)
+    if len(nodes) > 0:
+        return nodes[0][0]
     else:
-        node = py2neo.Node(id)
+        return None
+
+
+def find_or_create_node_by_uri(graph, uri, uri_property='uri'):
+    node = find_node_by_uri(graph, uri, uri_property=uri_property)
+    if node is None:
+        node = py2neo.Node()
+        node.properties[uri_property] = uri
         graph.create(node)
     return node
 
@@ -72,15 +92,22 @@ def main():
 
         nodes = []
         for resource in data:
-            node = find_or_create_node_by_id(graph, resource['@id'])
-            node.labels.add(compact_uri(resource['@id'], context))
+            node = find_or_create_node_by_uri(graph, resource['@id'])
 
+            # The 'compact-uri' property is just for convenience when exploring
+            # the graph directly within Neo4j.
+            node.properties['compact-uri'] = compact_uri(
+                resource['@id'], context)
+
+            labels = []
             properties = {}
             relationships = {}
             for key, values in resource.items():
-                if not key.startswith('@'):
-                    if not isinstance(values, list):
-                        values = [values]
+                if not isinstance(values, list):
+                    values = [values]
+                if key == '@type':
+                    labels.extend(values)
+                elif not key.startswith('@'):
                     for value in values:
                         if isinstance(value, dict) and value.get('@value'):
                             value = value['@value']
@@ -91,6 +118,13 @@ def main():
                             if key == 'https://schema.org/name':
                                 key = 'name'
                             node.properties[key] = value
+
+            # Labels are displayed in the Neo4j browser. Showing full URIs
+            # there is totally unwieldy, and as long as you have the JSON-LD
+            # context to hand there's no ambiguity about the compact URIs, so
+            # we just use those.
+            for label in labels:
+                node.labels.add(compact_uri(label, context))
 
             for key, value in relationships.items():
                 # We always use the short version of a key name to name
@@ -110,11 +144,11 @@ def main():
                                         "resource?" % (resource['@id'], key,
                                                         target))
                             continue
-                        target_id = target['@id']
+                        target_uri = target['@id']
                     else:
-                        target_id = target
+                        target_uri = target
 
-                    target = find_or_create_node_by_id(graph, target_id)
+                    target = find_or_create_node_by_uri(graph, target_uri)
                     existing_rels = graph.match(
                         start_node=node,
                         rel_type=key,
