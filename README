@@ -1,5 +1,14 @@
 Visualisations of software dependencies
 
+The majority of code runs browser-side and is written in Javascript.
+
+A minimal server process is supplied. We need to have some kind of custom
+server-side code in order to wrap the database; it's not easy for the
+browser to talk directly to a Neo4j instance due to the same-origin
+security policy. The server process is written in Python currently. This
+is just because it allowed me to complete the prototype quickly. The
+server could be reimplemented in another language fairly easily.
+
 These need to be interactive to be useful ...
 
 # Prior art

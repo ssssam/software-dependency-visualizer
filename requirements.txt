@@ -1,0 +1,8 @@
+# Dependencies for software-dependency-visualiser prototype.
+
+# Minimal web-framework for server component.
+bottle
+
+# Neo4j access.
+py2neo
+
