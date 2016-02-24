@@ -5,7 +5,8 @@
 # for me to write Python right now. Also, the current implementation takes a
 # simplistic approach that would not scale to huge amounts of data. There are
 # hopefully more efficient ways to batch insert data into Neo4j. (One way is
-# to generate .csv files and then use neo4j-import).
+# to generate .csv files and then use neo4j-import; this doc:
+# <http://neo4j.com/docs/stable/cypherdoc-loading-data.html> is also relevant).
 
 # Requires 'py2neo' Python bindings for Neo4j.
 # Requires 'pyld' JSON-LD processor.
@@ -81,6 +82,13 @@ def main():
 
     graph = py2neo.Graph(args.endpoint)
 
+    # The 'Resource' label is applied to all nodes in our graph. Neo4j indexes
+    # and constraints must be attached to a label. Every node we create has a
+    # URI, so to create a uniqueness constraint and an index for the 'uri'
+    # and 'compact_uri' properties, we need to explicitly declare every node
+    # as a Resource, too.
+    all_labels = set('Resource')
+
     for filename in args.files:
         with open(filename) as f:
             data = yaml.load(f)
@@ -123,8 +131,11 @@ def main():
             # there is totally unwieldy, and as long as you have the JSON-LD
             # context to hand there's no ambiguity about the compact URIs, so
             # we just use those.
+            node.labels.add('Resource')
             for label in labels:
-                node.labels.add(compact_uri(label, context))
+                label_id = compact_uri(label, context)
+                node.labels.add(label_id)
+                all_labels.add(label_id)
 
             for key, value in relationships.items():
                 # We always use the short version of a key name to name
@@ -160,5 +171,20 @@ def main():
                         graph.create_unique(relationship)
 
             node.push()
+
+    # The uniqueness constraint created here also creates an index on
+    # Resource:uri and Resource.compact_uri. This will only get used if the
+    # Resource label is specified explicitly. If you match this, for example:
+    #
+    #   (node:Package {compact_uri: 'id:foo'})
+    #
+    # ...then Neo4j won't use an index. We would need to create indices for
+    # everything in `all_labels` for this to work. I don't yet know what the
+    # tradeoffs are.
+    existing_constraints = graph.schema.get_uniqueness_constraints('Resource')
+    for property_key in ['uri', 'compact_uri']:
+        if property_key not in existing_constraints:
+            graph.schema.create_uniqueness_constraint('Resource', property_key)
+
 
 main()
