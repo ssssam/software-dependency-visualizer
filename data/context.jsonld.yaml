@@ -1,0 +1,37 @@
+# JSON-LD context for data using the Software Integration Ontology terms.
+#
+# This is a copy of the 'upstream' one:
+#
+#   <https://github.com/ssssam/software-integration-ontology/blob/master/context.jsonld>
+#
+# It is served by the server.py process, which converts it to JSON before
+# sending.
+---
+'@context':
+  sw: 'http://baserock.org/software-integration-ontology#'
+
+  'contains':
+      '@id': 'sw:contains'
+      '@type': '@id'
+  'produces':
+      '@id': 'sw:produces'
+      '@type': '@id'
+  'requires':
+      '@id': 'sw:requires'
+      '@type': '@id'
+
+  # These 'human-readable' names are not just important here.
+  #
+  # We use these types as labels in Neo4J. ':' is a special character
+  # in the Cypher query language. You can escape using ` characters, but
+  # it's an extra pain.
+  'Binary': 'sw:Binary'
+  'BuildProcess': 'sw:BuildProcess'
+  'File': 'sw:File'
+  'FileTree': 'sw:FileTree'
+  'Intermediate': 'sw:Intermediate'
+  'Package': 'sw:Package'
+  'Repository': 'sw:Repository'
+  'Source': 'sw:Source'
+
+  'name': 'https://schema.org/name'

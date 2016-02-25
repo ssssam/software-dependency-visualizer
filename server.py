@@ -17,8 +17,10 @@
 import bottle
 import neo4jrestclient.client
 import neo4jrestclient.query
+import yaml
 
 import argparse
+import json
 import logging
 import sys
 import urllib.parse
@@ -48,6 +50,7 @@ app = bottle.Bottle()
 database = neo4jrestclient.client.GraphDatabase(args.neo4j)
 
 
+@app.route('/')
 @app.route('/browser')
 @app.route('/browser/')
 def browser_redirect():
@@ -61,29 +64,47 @@ def browser_content(path):
     return bottle.static_file(path, root='browser/')
 
 
-@app.route('/graph/node-number/<node_uri>')
-def graph_node_number(node_uri):
-    '''Return the node number, given a node's URI or compact URI.
+@app.route('/context.jsonld')
+def jsonld_context():
+    '''Serves the JSON-LD context that we use when describing resources.'''
+
+    with open('data/context.jsonld.yaml') as f:
+        context = yaml.load(f)
+    bottle.response.content_type = 'application/ld+json'
+    bottle.response.body = json.dumps(context, indent=4, sort_keys=True)
+    return bottle.response
+
+
+def lookup_node(uri):
+    '''Return a neo4jrestclient.Node instance for given a URI or compact URI.
 
     This uses a neo4jrestclient filter, which boils down to a simple
     Cypher query underneath.
 
     '''
-    node_uri = urllib.parse.unquote(node_uri)
-
     uri_lookup = neo4jrestclient.query.Q('uri', exact=node_uri, limit=2)
     compact_uri_lookup = neo4jrestclient.query.Q('compact_uri', exact=node_uri,
                                                  limit=2)
 
     nodes = database.nodes.filter(compact_uri_lookup)
     if len(nodes) > 0:
-        return nodes[0].id
+        return nodes[0]
     else:
         nodes = database.nodes.filter(uri_lookup)
         if len(nodes) > 0:
-            return nodes[0].id
-        else:
-            raise bottle.HTTPError(status=404)
+            return nodes[0]
+    return None
+
+
+@app.route('/graph/node-number/<node_uri>')
+def graph_node_number(node_uri):
+    '''Return the node number, given a node's URI or compact URI.'''
+    node_uri = urllib.parse.unquote(node_uri)
+    node = lookup_node(node_uri)
+    if node:
+        return node.id
+    else:
+        raise bottle.HTTPError(status=404)
 
 
 def repr_node(node):
@@ -250,6 +271,77 @@ def graph_present(root_node_number):
     root_node = database.nodes.get(root_node_number)
     nodes, edges, children = traverse_widthwise(root_node)
     return present(nodes, edges, children)
+
+
+@app.route('/info/<node_identifier>')
+def node_info(node_identifier):
+    '''Return information about a resource, given its URI or compact URI.
+
+    The info is returned as a Linked Data using the JSON-LD serialisation
+    format.
+
+    '''
+    node_identifier = urllib.parse.unquote(node_identifier)
+    try:
+        node_number = int(node_identifier)
+        node = database.nodes.get(node_number)
+    except ValueError:
+        node_uri = node_identifier
+        node = lookup_node(uri)
+
+    # FIXME: this seems a bit of a dodgy way to get the URL for a route.
+    scheme, netloc, path, query, _ = bottle.request.urlparts
+    context_url = urllib.parse.urlunsplit(
+        [scheme, netloc, app.get_url('/context.jsonld'), None, None])
+
+    def node_link(node):
+        query = {'focus': urllib.parse.quote(node.properties['compact_uri'])}
+        query_string = urllib.parse.urlencode(query)
+        return urllib.parse.urlunsplit([
+            scheme, netloc, app.get_url('/browser/') + 'index.html',
+            query_string, None])
+
+    def relation_info(node, direction, type):
+        '''Return a little info on some direct relations of this node.'''
+        assert direction in ['incoming', 'outgoing']
+
+        if direction == 'incoming':
+            relationships = node.relationships.incoming(types=[type])
+        else:
+            relationships = node.relationships.outgoing(types=[type])
+
+        infos = [{
+            '@id': r.end.properties.get('uri'),
+            'name': r.end.properties.get('name'),
+            'link': node_link(r.end),
+        } for r in relationships]
+        return infos
+
+    return {
+        '@context': context_url,
+
+        # Note that this should be the URI of the *real* resource,
+        # e.g. <https://git.gnome.org/browse/gtk+/tree/gtk/gtk.h?h=gtk-2-24>,
+        # not a link to something in the software-dependency-visualiser
+        # application.
+        '@id': node.properties.get('uri'),
+
+        'name': node.properties.get('name'),
+
+        # FIXME: the *-by properties aren't defined anywhere. The main ontology
+        # specifically avoids such 'unneeded' properties. I guess there or here
+        # we should provide some 'supplemental' terms... or can it be done with
+        # @reverse in the JSON-LD context??
+        #
+        # Also: we should be able to say 'requires' rather than 'sw:requires',
+        # the import/neo4j script is getting that wrong right now.
+        'requires': relation_info(node, 'outgoing', 'sw:requires'),
+        'required-by': relation_info(node, 'incoming', 'sw:requires'),
+        'produces': relation_info(node, 'outgoing', 'sw:produces'),
+        'produced-by': relation_info(node, 'incoming', 'sw:produces'),
+        'contains': relation_info(node, 'outgoing', 'sw:contains'),
+        'contained-by': relation_info(node, 'incoming', 'sw:contains'),
+    }
 
 
 

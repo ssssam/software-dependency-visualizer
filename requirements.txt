@@ -6,3 +6,6 @@ bottle
 # Neo4j access.
 py2neo
 
+# I like to store JSON-LD data as YAML documents, it's easier to write. The
+# server process converts them to JSON using the PyYAML library.
+yaml
