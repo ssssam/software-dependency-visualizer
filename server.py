@@ -173,7 +173,9 @@ def graph_present(root_node_number):
     standardised interchange format.
 
     GraphJSON is defined here: <https://github.com/GraphAlchemist/GraphJSON>
-    (although it seems a little abandoned at time of writing).
+    (although it seems a little abandoned at time of writing). Note that
+    the Node.js 'graph-json' package <https://www.npmjs.com/package/graph-json>
+    is something else again.
 
     '''
     def traverse_widthwise(start_node, max_width=2, max_depth=2,
