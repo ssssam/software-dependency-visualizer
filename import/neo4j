@@ -77,6 +77,25 @@ def find_or_create_node_by_uri(graph, uri, uri_property='uri'):
     return node
 
 
+def data_type(values):
+    '''Returns 'property' or 'relationship' a given set of values.'''
+    kind = None
+    for value_dict in values:
+        if '@value' in value_dict:
+            if kind is None:
+                kind = 'property'
+            elif kind == 'relationship':
+                raise ValueError("Data mixes up @value and @id")
+        elif '@id' in value_dict:
+            if kind is None:
+                kind = 'relationship'
+            elif kind == 'property':
+                raise ValueError("Data mixes up @value and @id")
+        else:
+            raise ValueError("Data specifies neither @value nor @id")
+    return kind
+
+
 def main():
     args = argument_parser().parse_args()
 
@@ -116,25 +135,30 @@ def main():
             node.properties['compact_uri'] = compact_uri(
                 resource['@id'], context)
 
+            # Separate out labels, properties and values from the JSON-LD data.
             labels = []
             properties = {}
             relationships = {}
             for key, values in resource.items():
-                if not isinstance(values, list):
-                    values = [values]
+                if key == '@id':
+                    continue
+
+                # JSON-LD seems to turn everything into lists, other than @id,
+                # so we assume value is always a list here.
+                assert isinstance(values, list)
+
                 if key == '@type':
                     labels.extend(values)
                 elif not key.startswith('@'):
-                    for value in values:
-                        if isinstance(value, dict) and value.get('@value'):
-                            value = value['@value']
-
-                        if type(value) in [list, dict]:
-                            relationships[key] = value
+                    if data_type(values) == 'relationship':
+                        relationships[key] = [d['@id'] for d in values]
+                    else:
+                        if key == 'https://schema.org/name':
+                            key = 'name'
+                        if len(values) == 1:
+                            node.properties[key] = values[0]['@value']
                         else:
-                            if key == 'https://schema.org/name':
-                                key = 'name'
-                            node.properties[key] = value
+                            node.properties[key] = [d['@value'] for d in values]
 
             # Labels are displayed in the Neo4j browser. Showing full URIs
             # there is totally unwieldy, and as long as you have the JSON-LD
