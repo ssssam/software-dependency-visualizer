@@ -16,7 +16,7 @@
 '@graph':
 - '@id': 'id:repos/gtk.git/commits/1234'
   '@type': [ 'sw:FileTree' ]
-  'name': 'gtk.git commit 1234'
+  'name': 'gtk.git, commit 1234'
   'contains':
     - '@id': 'id:repos/gtk.git/commits/1234/gtk.h'
       '@type': [ 'sw:File', 'sw:Source' ]
@@ -63,16 +63,18 @@
   'contains':
     - '@id': 'id:repos/gtk-package.git/commits/5678/debian/rules'
       '@type': [ 'sw:Source', 'sw:File' ]
+      'name': 'debian/rules'
       'requires': 'id:repos/gtk.git/commits/1234'
 
 - '@id': 'id:build-process/package/source/libgtk'
   '@type': [ 'sw:BuildProcess' ]
-  'name': 'libgtk-src'
+  'name': 'libgtk (source package build process)'
   'requires': 'id:repos/gtk-package.git/commits/5678/debian/rules'
   'produces': 'id:package/source/libgtk'
 
 - '@id': 'id:package/source/libgtk'
   '@type': [ 'sw:Source', 'sw:Package' ]
+  'name': 'libgtk (source package)'
   'contains':
       - 'id:repos/gtk.git/commits/1234/gtk.c'
       - 'id:repos/gtk.git/commits/1234/gtk.h'
@@ -81,14 +83,14 @@
 
 - '@id': 'id:build-process/package/binary/libgtk'
   '@type': [ 'sw:BuildProcess' ]
-  'name': 'libgtk'
+  'name': 'libgtk (build process)'
   'requires':
       - 'id:package/source/libgtk'
   'produces':
       - 'id:package/binary/libgtk'
 
 - '@id': 'id:package/binary/libgtk'
-  'name': 'libgtk-bin'
+  'name': 'libgtk-bin (package)'
   '@type': [ 'sw:Binary', 'sw:Package' ]
   'contains':
       - 'id:output/libgtk.so'
