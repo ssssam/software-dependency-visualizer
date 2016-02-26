@@ -3,10 +3,12 @@
 line.link {
     stroke: black;
     stroke-width: 1px;
+    z-index: -1;
 }
 
-circle.node {
-    fill: none;
+.node circle {
+    fill: rgb(255, 255, 255);
+    fill-opacity: 1;
     stroke: black;
 }
 

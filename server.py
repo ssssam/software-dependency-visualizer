@@ -75,16 +75,22 @@ def jsonld_context():
     return bottle.response
 
 
-def lookup_node(uri):
-    '''Return a neo4jrestclient.Node instance for given a URI or compact URI.
+def lookup_node(identifier):
+    '''Return a neo4jrestclient.Node instance, given a node identifier.
 
     This uses a neo4jrestclient filter, which boils down to a simple
     Cypher query underneath.
 
     '''
-    uri_lookup = neo4jrestclient.query.Q('uri', exact=uri, limit=2)
-    compact_uri_lookup = neo4jrestclient.query.Q('compact_uri', exact=uri,
-                                                 limit=2)
+    try:
+        node_number = int(identifier)
+        return database.nodes.get(node_number)
+    except ValueError:
+        pass
+
+    uri_lookup = neo4jrestclient.query.Q('uri', exact=identifier, limit=2)
+    compact_uri_lookup = neo4jrestclient.query.Q('compact_uri',
+                                                 exact=identifier, limit=2)
 
     nodes = database.nodes.filter(compact_uri_lookup)
     if len(nodes) > 0:
@@ -107,14 +113,18 @@ def graph_node_number(node_uri):
         raise bottle.HTTPError(status=404)
 
 
-def repr_node(node):
-    '''Represent a node as text. For use in debug logging and such.'''
+def node_name(node):
+    '''Get a human-readable name for a node.
+
+    The 'name' property is used if set, but it may not be set.
+
+    '''
     if 'name' in node.properties:
-        return "'" + node.properties['name'] + "'"
+        return node.properties['name']
     elif 'compact_uri' in node.properties:
         return node.properties['compact_uri']
     else:
-        return repr(node)
+        return node.uri
 
 
 def present_node(node, contents_graphjson=None):
@@ -123,7 +133,7 @@ def present_node(node, contents_graphjson=None):
     return {
         '_id': node.id,
         'uri': node.properties['uri'],
-        'caption': node.properties.get('name'),
+        'caption': node_name(node),
         'contains': contents_graphjson or {},
     }
 
@@ -171,8 +181,8 @@ def traverse_nodes(start_node, stop=None, direction=neo4jrestclient.client.All,
     )
 
 
-@app.route('/graph/present/<root_node_number>')
-def graph_present(root_node_number):
+@app.route('/graph/present/<root_node_identifier>')
+def graph_present(root_node_identifier):
     '''Return siblings and children of a given graph node.
 
     This traverses the graph using the REST API of the Neo4j database.
@@ -201,7 +211,7 @@ def graph_present(root_node_number):
     '''
     def traverse_widthwise(start_node, max_width=2, max_depth=2,
                            depth=0):
-        logging.debug("Traversing widthwise from %s" % repr_node(start_node))
+        logging.debug("Traversing widthwise from '%s'" % node_name(start_node))
 
         paths = traverse_paths(start_node, stop=max_width,
                                types=['sw:produces', 'sw:requires'])
@@ -231,7 +241,7 @@ def graph_present(root_node_number):
         if depth >= max_depth:
             return {}
 
-        logging.debug("Finding children of %s" % repr_node(parent_node))
+        logging.debug("Finding children of %s" % node_name(parent_node))
 
         child_nodes = traverse_nodes(parent_node, stop=1,
                                      direction=neo4jrestclient.client.Outgoing,
@@ -255,22 +265,32 @@ def graph_present(root_node_number):
                 edges.update(sibling_edges)
                 children.update(sibling_children)
 
-        logging.debug("Presenting & returning %s, %s, %s", nodes, edges, children)
+        logging.debug("Presenting & returning %s, %s, %s", nodes, edges,
+                      children)
         return present(nodes, edges, children)
 
-    def present(node_list, edge_list, node_children):
+    def present(node_list, edge_list, node_children, start_node=None):
         nodes_graphjson = []
         edges_graphjson = []
+
         for node in node_list:
             contents = node_children.get(node, {})
-            nodes_graphjson.append(present_node(node, contents))
+            info = present_node(node, contents)
+            if start_node == node:
+                info['root'] = True
+            nodes_graphjson.append(info)
+
         for edge in edge_list:
             edges_graphjson.append(present_relationship(edge))
         return {'nodes': nodes_graphjson, 'edges': edges_graphjson}
 
-    root_node = database.nodes.get(root_node_number)
+    root_node_identifier = urllib.parse.unquote(root_node_identifier)
+    root_node = lookup_node(root_node_identifier)
+    print("Got %s for %s" % (root_node, root_node_identifier))
+    if not root_node:
+        raise bottle.HTTPError(status=404)
     nodes, edges, children = traverse_widthwise(root_node)
-    return present(nodes, edges, children)
+    return present(nodes, edges, children, start_node=root_node)
 
 
 @app.route('/info/<node_identifier>')
@@ -282,12 +302,7 @@ def node_info(node_identifier):
 
     '''
     node_identifier = urllib.parse.unquote(node_identifier)
-    try:
-        node_number = int(node_identifier)
-        node = database.nodes.get(node_number)
-    except ValueError:
-        node_uri = node_identifier
-        node = lookup_node(node_uri)
+    node = lookup_node(node_identifier)
 
     # FIXME: this seems a bit of a dodgy way to get the URL for a route.
     scheme, netloc, path, query, _ = bottle.request.urlparts
@@ -295,13 +310,14 @@ def node_info(node_identifier):
         [scheme, netloc, app.get_url('/context.jsonld'), None, None])
 
     def node_link(node):
-        query = {'focus': urllib.parse.quote_plus(node.properties['compact_uri'])}
+        query = {'focus':
+                 urllib.parse.quote_plus(node.properties['compact_uri'])}
         query_string = urllib.parse.urlencode(query)
         return urllib.parse.urlunsplit([
             scheme, netloc, app.get_url('/browser/') + 'index.html',
             query_string, None])
 
-    def relation_info(node, direction, type):
+    def relations_info(node, direction, type):
         '''Return a little info on some direct relations of this node.'''
         assert direction in ['incoming', 'outgoing']
 
@@ -310,12 +326,16 @@ def node_info(node_identifier):
         else:
             relationships = node.relationships.outgoing(types=[type])
 
-        infos = [{
-            '@id': r.end.properties.get('uri'),
-            'name': r.end.properties.get('name'),
-            'link': node_link(r.end),
-        } for r in relationships]
-        return infos
+        infos = []
+        for r in relationships:
+            relation = r.end if direction=='outgoing' else r.start
+
+            infos.append({
+                '@id': relation.properties.get('uri'),
+                'name': node_name(relation),
+                'link': node_link(relation),
+            })
+        return infos or None
 
     return {
         '@context': context_url,
@@ -326,7 +346,7 @@ def node_info(node_identifier):
         # application.
         '@id': node.properties.get('uri'),
 
-        'name': node.properties.get('name'),
+        'name': node_name(node),
 
         # FIXME: the *-by properties aren't defined anywhere. The main ontology
         # specifically avoids such 'unneeded' properties. I guess there or here
@@ -335,14 +355,13 @@ def node_info(node_identifier):
         #
         # Also: we should be able to say 'requires' rather than 'sw:requires',
         # the import/neo4j script is getting that wrong right now.
-        'requires': relation_info(node, 'outgoing', 'sw:requires'),
-        'required-by': relation_info(node, 'incoming', 'sw:requires'),
-        'produces': relation_info(node, 'outgoing', 'sw:produces'),
-        'produced-by': relation_info(node, 'incoming', 'sw:produces'),
-        'contains': relation_info(node, 'outgoing', 'sw:contains'),
-        'contained-by': relation_info(node, 'incoming', 'sw:contains'),
+        'requires': relations_info(node, 'outgoing', 'sw:requires'),
+        'required_by': relations_info(node, 'incoming', 'sw:requires'),
+        'produces': relations_info(node, 'outgoing', 'sw:produces'),
+        'produced_by': relations_info(node, 'incoming', 'sw:produces'),
+        'contains': relations_info(node, 'outgoing', 'sw:contains'),
+        'contained_by': relations_info(node, 'incoming', 'sw:contains'),
     }
-
 
 
 #logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)

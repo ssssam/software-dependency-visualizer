@@ -37,7 +37,6 @@
   <!-- software-dependency-explorer components -->
   <script type="text/javascript" src="browser.js"></script>
   <script type="text/javascript" src="graph.js"></script>
-  <script type="text/javascript" src="model.js"></script>
   <link rel="stylesheet" type="text/css" href="graph.css">
 </head>
 
@@ -51,75 +50,99 @@
            to update the fields whenever we call ko.applyBindings().
         -->
       <p>
-      Name: <span id="name" data-bind="text: label"><i>none</i></span>
+      Name: <span id="name" data-bind="text: name"><i>none</i></span>
       </p>
 
-      <p>
+      <p data-bind="if: requires">
       Requires:
-      <ul id="requires" data-bind="foreach: requires">
-        <li><a data-bind="text: label, attr: { href: focus_url }"></a></li>
+      <ul data-bind="foreach: requires">
+        <li><a data-bind="text: name, attr: { href: link }"></a></li>
       </ul>
       </p>
 
-      <p>
+      <p data-bind="if: required_by">
       Required by:
-      <ul id="required-by" data-bind="foreach: required_by">
-          <li><a data-bind="text: label, attr: { href: focus_url }"></a></li>
+      <ul data-bind="foreach: required_by">
+          <li><a data-bind="text: name, attr: { href: link }"></a></li>
       </ul>
       </p>
+
+      <p data-bind="if: produces">
+      Produces:
+      <ul data-bind="foreach: produces">
+          <li><a data-bind="text: name, attr: { href: link }"></a></li>
+      </ul>
+      </p>
+
+      <p data-bind="if: produced_by">
+      Produced by:
+      <ul data-bind="foreach: produced_by">
+          <li><a data-bind="text: name, attr: { href: link }"></a></li>
+      </ul>
+      </p>
+
+      <p data-bind="if: contains">
+      Contains:
+      <ul data-bind="foreach: contains">
+          <li><a data-bind="text: name, attr: { href: link }"></a></li>
+      </ul>
+      </p>
+
+      <p data-bind="if: contained_by">
+      Contained by:
+      <ul data-bind="foreach: contained_by">
+          <li><a data-bind="text: name, attr: { href: link }"></a></li>
+      </ul>
+      </p>
+
+      <!-- Controls for the graph -->
+      <form action="#">
+        <fieldset>
+          <label for="graph-layout">Graph layout</label>
+          <select name="graph-layout" id="graph-layout">
+            <!-- FIXME: we could come up with better names for these layouts,
+                 using the name of the D3 class that implements the layout is
+                 not necessarily very intuitive.
+              -->
+            <option value="force" selected="selected">Force</option>
+            <option value="cluster">Cluster</option>
+          </select>
+          <br>
+
+          <label for="max-requires">Show requires</label>
+          <select name="max-requires" id="max-requires">
+            <option value="0" selected="selected">0 (None)</option>
+            <option value="1">1 (Direct only)</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          <select>
+          <br>
+
+          <label for="max-required-by">Show required-by</label>
+          <select name="max-required-by" id="max-required-by">
+            <option value="0">0 (None)</option>
+            <option value="1" selected="selected">1 (Direct only)</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          <select>
+        </fieldset>
+      </form>
+
   </div>
 
   <div id="layout" style="width: 100%; height: 600px; display: none;">
     <!-- This will be filled with the w2ui paned layout, and made visible. -->
   </div>
 
-  <div id="graph-source" style="display: none;">
-    <!-- Graph soure code is fetched here.
-         The jQuery $.load() object only allows fetching data into a DOM
-         element.
-      -->
-  </div>
-
   <div id="graph-visualisation" style="width: 100%; height: 100%; z-index: 1;">
-    <!-- Controls for the graph -->
-    <form action="#">
-      <fieldset>
-        <label for="graph-layout">Graph layout</label>
-        <select name="graph-layout" id="graph-layout">
-          <!-- FIXME: we could come up with better names for these layouts,
-               using the name of the D3 class that implements the layout is
-               not necessarily very intuitive.
-            -->
-          <option value="force" selected="selected">Force</option>
-          <option value="cluster">Cluster</option>
-        </select>
-        <br>
-
-        <label for="max-requires">Show requires</label>
-        <select name="max-requires" id="max-requires">
-          <option value="0" selected="selected">0 (None)</option>
-          <option value="1">1 (Direct only)</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-        <select>
-        <br>
-
-        <label for="max-required-by">Show required-by</label>
-        <select name="max-required-by" id="max-required-by">
-          <option value="0">0 (None)</option>
-          <option value="1" selected="selected">1 (Direct only)</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-        <select>
-      </fieldset>
-    </form>
-
     <!-- This is the rendering target for the Graph code. -->
     <svg id="graph-visualisation" style="width: 100%; height: 100%; position: absolute; top: 0px; left: 0px; z-index: -1;"></svg>
   </div>
 </body>
 
 <script>
+
+"use strict";
 
 // Get a ? query parameter from the URL.
 // From: https://stackoverflow.com/questions/901115/how-can-i-get-query-string-values-in-javascript/5158301#5158301
@@ -128,20 +151,20 @@ function getParameterByName(name) {
     return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
 }
 
-DEFAULT_FOCUS = "bde";
+// Start by showing node 0.
+var DEFAULT_FOCUS = 0;
 
 // Main function, called on page load.
 $(function() {
     setup_layout();
 
-    var model = new Model();
+    var focus = getParameterByName("focus") || DEFAULT_FOCUS;
 
-    var browser = new Browser(model, "#browser");
-    // We can't do much with the browser client-side until the data is loaded
+    var browser = new Browser("#browser");
+    browser.show_component(focus);
 
-    var graph = new Graph(model, "svg#graph-visualisation");
-    // We can't render the graph yet, so add some "loading" text.
-    graph.show_loading_text("Loading graph...");
+    var graph = new Graph("svg#graph-visualisation");
+    graph.show_component(focus);
 
     // Load the graphviz data into a hidden <div> element. This sucks and is
     // one of the many reasons we should do the graph processing server-side.
@@ -171,7 +194,8 @@ $(function() {
     });
 });
 
-// Called on page load
+// Sets up the paned layout, using the 'w2ui' Javascript UI library.
+// Called on page load from $().
 function setup_layout() {
     var pstyle = 'background-color: #F5F6F7; border: 1px solid #dfdfdf; padding: 5px;';
     $('#layout').w2layout({

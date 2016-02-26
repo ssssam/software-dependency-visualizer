@@ -7,19 +7,18 @@
  * this should all be done server-side instead. Or both. Not sure.
  */
 
-"use strict";
+'use strict';
 
 // Constructor for Browser object.
-function Browser(model, div_selector) {
-    this.data = model
+function Browser(div_selector) {
     this.div_selector = div_selector;
 };
 
-Browser.prototype.show_component = function(name) {
-    var node = this.data.node(name);
+Browser.prototype.show_component = function(node_identifier) {
+    console.log("Requesting node: ", node_identifier);
+    $.getJSON('/info/' + encodeURIComponent(node_identifier), function (node_info) {
+        console.log("Displaying node: ", node_info);
 
-    // FIXME: need to deal with an invalid node name being passed
-    // by showing some kind of helpful error
-
-    ko.applyBindings(node);
+        ko.applyBindings(node_info);
+    });
 };
