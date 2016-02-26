@@ -234,7 +234,6 @@ def graph_present(root_node_identifier):
                                          max_depth=max_depth, depth=depth)
                 children[end_node] = contents
 
-        logging.debug("Returning %s, %s, %s", nodes, edges, contents)
         return nodes, edges, children
 
     def find_children(parent_node, max_width=2, max_depth=2, depth=0):
