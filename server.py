@@ -295,7 +295,7 @@ def node_info(node_identifier):
         [scheme, netloc, app.get_url('/context.jsonld'), None, None])
 
     def node_link(node):
-        query = {'focus': urllib.parse.quote(node.properties['compact_uri'])}
+        query = {'focus': urllib.parse.quote_plus(node.properties['compact_uri'])}
         query_string = urllib.parse.urlencode(query)
         return urllib.parse.urlunsplit([
             scheme, netloc, app.get_url('/browser/') + 'index.html',
