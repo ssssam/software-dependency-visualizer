@@ -16,13 +16,13 @@
 #
 #   MATCH (n) OPTIONAL MATCH (n)-[r]-() DELETE n,r;
 
-# 
 
 import py2neo
 import pyld.jsonld
 import yaml
 
 import argparse
+import os
 import warnings
 
 DEFAULT_ENDPOINT =  'http://neo4j:insecure@localhost:7474/db/data'
@@ -89,10 +89,19 @@ def main():
     # as a Resource, too.
     all_labels = set('Resource')
 
+    with open(os.path.join(os.path.dirname(__file__), '../data/context.jsonld.yaml')) as f:
+        default_context = yaml.load(f)
+
     for filename in args.files:
         with open(filename) as f:
             data = yaml.load(f)
 
+        # Avoid fetching a file that we have available locally. This is a bit
+        # hacky though.
+        default_context_url = 'https://raw.githubusercontent.com/ssssam/software-integration-ontology/master/context.jsonld'
+        if default_context_url in data['@context']:
+            index = data['@context'].index(default_context_url)
+            data['@context'][index] = default_context
         context = data['@context']
 
         data = pyld.jsonld.expand(data)
