@@ -82,8 +82,8 @@ def lookup_node(uri):
     Cypher query underneath.
 
     '''
-    uri_lookup = neo4jrestclient.query.Q('uri', exact=node_uri, limit=2)
-    compact_uri_lookup = neo4jrestclient.query.Q('compact_uri', exact=node_uri,
+    uri_lookup = neo4jrestclient.query.Q('uri', exact=uri, limit=2)
+    compact_uri_lookup = neo4jrestclient.query.Q('compact_uri', exact=uri,
                                                  limit=2)
 
     nodes = database.nodes.filter(compact_uri_lookup)
@@ -287,7 +287,7 @@ def node_info(node_identifier):
         node = database.nodes.get(node_number)
     except ValueError:
         node_uri = node_identifier
-        node = lookup_node(uri)
+        node = lookup_node(node_uri)
 
     # FIXME: this seems a bit of a dodgy way to get the URL for a route.
     scheme, netloc, path, query, _ = bottle.request.urlparts
