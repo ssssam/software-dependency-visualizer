@@ -127,7 +127,7 @@ def node_name(node):
         return node.uri
 
 
-def present_node(node, contents_graphjson=None):
+def encode_node(node, contents_graphjson=None):
     '''Represent as GraphJSON data, ready to send to client.'''
 
     return {
@@ -138,7 +138,7 @@ def present_node(node, contents_graphjson=None):
     }
 
 
-def present_relationship(relationship):
+def encode_relationship(relationship):
     '''Represent a relationship as GraphJSON data, ready to send to client.'''
 
     return {
@@ -181,6 +181,50 @@ def traverse_nodes(start_node, stop=None, direction=neo4jrestclient.client.All,
     )
 
 
+class Presentation():
+    '''Describes how to present a given node.
+
+    Presentation involves a 2-dimensional traverse. The 'width' relations
+    are intended to be represented as different nodes at the same level, e.g:
+
+        o  --  o
+          \
+           \
+            o
+
+    The 'depth' relations are intended to be represented as a parent-child
+    heirarchy, e.g:
+         ______       _____
+        /      \     /     \
+        | o    |     |   o |
+        |  \   |-----|     |
+        |   o  |     | o   |
+        \______/     \_____/
+
+    '''
+
+    def __init__(self, root_node,
+                 width_relationships=['sw:requires', 'sw:produces'],
+                 max_width=2,
+                 depth_relationships=['sw:contains'],
+                 max_depth=2):
+        self.root_node = root_node
+
+        self.width_relationships = width_relationships
+        self.max_width = max_width
+        self.depth_relationships = depth_relationships
+        self.max_depth = max_depth
+
+    def encode(self):
+        return {
+            'root_node': self.root_node.identifier,
+            'width_relationships': self.width_relationships,
+            'max_width': self.max_width,
+            'depth_relationships': self.depth_relationships,
+            'max_depth': self.max_depth
+        }
+
+
 @app.route('/graph/present/<root_node_identifier>')
 def graph_present(root_node_identifier):
     '''Return siblings and children of a given graph node.
@@ -209,18 +253,17 @@ def graph_present(root_node_identifier):
     is something else again.
 
     '''
-    def traverse_widthwise(start_node, max_width=2, max_depth=2,
-                           depth=0):
+
+    def traverse_widthwise(start_node, config, depth=0):
         logging.debug("Traversing widthwise from '%s'" % node_name(start_node))
 
-        paths = traverse_paths(start_node, stop=max_width,
-                               types=['sw:produces', 'sw:requires'])
+        paths = traverse_paths(start_node, stop=config.max_width,
+                               types=config.width_relationships)
 
         nodes = set([start_node])
         edges = set()
         children = {
-            start_node: find_children(start_node, max_width=max_width,
-                                      max_depth=max_depth, depth=depth)
+            start_node: find_children(start_node, config, depth=depth)
         }
 
         for path in paths:
@@ -230,21 +273,20 @@ def graph_present(root_node_identifier):
                 nodes.add(end_node)
                 edges.add(path.last_relationship)
 
-                contents = find_children(end_node, max_width=max_width,
-                                         max_depth=max_depth, depth=depth)
+                contents = find_children(end_node, config, depth=depth)
                 children[end_node] = contents
 
         return nodes, edges, children
 
-    def find_children(parent_node, max_width=2, max_depth=2, depth=0):
-        if depth >= max_depth:
+    def find_children(parent_node, config, depth=0):
+        if depth >= config.max_depth:
             return {}
 
         logging.debug("Finding children of %s" % node_name(parent_node))
 
         child_nodes = traverse_nodes(parent_node, stop=1,
                                      direction=neo4jrestclient.client.Outgoing,
-                                     types=['sw:contains'])
+                                     types=config.depth_relationships)
 
         # We now traverse from each child node in turn, to find all siblings
         # at this depth. This is pretty wasteful! It would be better to do
@@ -257,39 +299,52 @@ def graph_present(root_node_identifier):
         for node in list(child_nodes):
             if node not in nodes:
                 sibling_nodes, sibling_edges, sibling_children = \
-                    traverse_widthwise(node, max_width=max_width,
-                                       max_depth=max_depth, depth=depth+1)
+                    traverse_widthwise(node, config, depth=depth+1)
 
                 nodes.update(sibling_nodes)
                 edges.update(sibling_edges)
                 children.update(sibling_children)
 
+        # We don't pass the config here, we only need to return it once per
+        # query result.
         logging.debug("Presenting & returning %s, %s, %s", nodes, edges,
                       children)
-        return present(nodes, edges, children)
+        return encode_as_graphjson(nodes, edges, children)
 
-    def present(node_list, edge_list, node_children, start_node=None):
+    def encode_as_graphjson(node_list, edge_list, node_children, config=None):
+        '''Structure traverse results as GraphJSON, suitable for clients.'''
         nodes_graphjson = []
         edges_graphjson = []
 
         for node in node_list:
             contents = node_children.get(node, {})
-            info = present_node(node, contents)
-            if start_node == node:
+            info = encode_node(node, contents)
+            if config and node == config.root_node:
                 info['root'] = True
             nodes_graphjson.append(info)
 
         for edge in edge_list:
-            edges_graphjson.append(present_relationship(edge))
-        return {'nodes': nodes_graphjson, 'edges': edges_graphjson}
+            edges_graphjson.append(encode_relationship(edge))
+
+        result = {
+            'nodes': nodes_graphjson,
+            'edges': edges_graphjson,
+        }
+
+        if config:
+            result['config'] = config.encode()
+
+        return result
 
     root_node_identifier = urllib.parse.unquote(root_node_identifier)
     root_node = lookup_node(root_node_identifier)
-    print("Got %s for %s" % (root_node, root_node_identifier))
     if not root_node:
         raise bottle.HTTPError(status=404)
-    nodes, edges, children = traverse_widthwise(root_node)
-    return present(nodes, edges, children, start_node=root_node)
+
+    config = Presentation(root_node)
+
+    nodes, edges, children = traverse_widthwise(root_node, config)
+    return encode_as_graphjson(nodes, edges, children, config)
 
 
 @app.route('/info/<node_identifier>')
