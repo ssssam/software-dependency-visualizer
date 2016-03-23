@@ -1,0 +1,27 @@
+# Software Dependency Visualizer PROTOTYPE
+
+**This tool is incomplete and unusable.**.
+
+This prototype tool is the result of an investigation into visualising software
+dependencies.
+
+Rough aims of the tool:
+
+* Interactively browse components and dependencies
+* Support huge datasets (for example, an entire Debian release)
+* Zoom between package or repository groupings, to individual files
+
+## Implementation
+
+This prototype is implemented as a web application, and uses:
+
+* [Neo4j graph database](http://neo4j.com/) for storage
+* A minimal Python server to serve code and wrap the database
+* [D3.js](https://d3js.org/) to render the results as interactive SVG graphics
+
+A minimal server process is supplied. We need to have some kind of custom
+server-side code in order to wrap the database; it's not easy for the
+browser to talk directly to a Neo4j instance due to the same-origin
+security policy. The server process is written in Python currently. This
+is just because it allowed me to complete the prototype quickly. The
+server could be reimplemented in another language fairly easily.
