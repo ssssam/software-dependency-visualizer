@@ -217,7 +217,7 @@ class Presentation():
 
     def encode(self):
         return {
-            'root_node': self.root_node.identifier,
+            'root_node': self.root_node.id,
             'width_relationships': self.width_relationships,
             'max_width': self.max_width,
             'depth_relationships': self.depth_relationships,
