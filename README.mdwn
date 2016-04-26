@@ -25,3 +25,17 @@ browser to talk directly to a Neo4j instance due to the same-origin
 security policy. The server process is written in Python currently. This
 is just because it allowed me to complete the prototype quickly. The
 server could be reimplemented in another language fairly easily.
+
+## Running the demo
+
+* Start neo4j. If you've downloaded a copy of the neo4j community edition from http://neo4j.com/download/, then
+change to the unpacked directory and run:
+
+    neo4j-community-2.3.2/bin/neo4j
+
+* If this is the first time you've run it, import that data from the examples directory:
+
+    import/neo4j examples/shared-lib.yaml
+
+* Start 'server.py' from this repository. You may need to specifically invoke it with Python 3, so use 'python3 server.py'.
+Once this has started, you can point a browser at http://localhost:8080 to see the rendered results.
